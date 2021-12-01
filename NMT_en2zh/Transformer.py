@@ -54,11 +54,11 @@ def create_padding_mask(seq):
 
     Params:
     ------
-        seq: 输入序列尺寸为
+        seq: 输入的一批序列，尺寸为(batch_size, seq_len)
     
     Returns:
     -------
-        mask: 输出的mask的(batch_size, 1, 1, seq_len)
+        mask: 输出的mask的尺寸为(batch_size, 1, 1, seq_len)
     '''
     seq = tf.cast(tf.math.equal(seq, 0), tf.float32)
 
@@ -66,9 +66,24 @@ def create_padding_mask(seq):
     mask = seq[:, np.newaxis, np.newaxis, :]
     return mask
 
-def create_look_ahead_mask(size):
-    pass
+def create_look_ahead_mask(seq_len):
+    '''
+    前瞻遮挡用于遮挡一个序列中的后续标记，也就是该mask表明了不应该使用的条目。
+    即预测第三个词时，只能使用第一个和第二个词，而不能使用第三个词后面的条目。
+
+    Params:
+    ------
+        seq_len: 序列长度
+    
+    Returns:
+    -------
+        mask: 输出的mask的尺寸为(seq_len, seq_len)
+    '''
+    mask = 1 - tf.linalg.band_part(tf.ones(shape=(seq_len, seq_len)), -1, 0)
+    
+    return mask
 
 if __name__ == '__main__':
-    pos_encoding = positional_encoding(50, 512)
-    print(pos_encoding)
+    x = tf.constant([[7, 6, 0, 0, 1], [1, 2, 3, 0, 0], [0, 0, 0, 4, 5]])
+    mask = create_look_ahead_mask(x.shape[1])
+    print(mask)
