@@ -1,4 +1,5 @@
 import tensorflow as tf
+import tensorflow.keras as tfkeras
 import numpy as np
 
 # -------------- Positional Encoding -------------- #
@@ -83,7 +84,47 @@ def create_look_ahead_mask(seq_len):
     
     return mask
 
+# -------------- Scaled dot product attention -------------- #
+def scaled_dot_product_attention(q, k, v, mask=None):
+    '''
+    计算点积注意力权重。
+
+    Params:
+    ------
+        q: Query， 形状 == (..., seq_len_q, depth) 
+        k: Key， 形状 == (..., seq_len_k, depth)
+        v: Value， 形状 == (..., seq_len_v, depth_v)
+        mask: Float张量，其形状可以转换为(..., seq_len_q, seq_len_k)，默认值为None
+
+    Returns:
+    -------
+        output: 最终的输出张量，有Query与Key计算得来
+        attention_weights: 注意力权重张量
+    '''
+    matmul_qk = tf.matmul(q, k, transpose_b=True)  # (..., seq_len_q, seq_len_k)
+
+    # 为了获取更加平滑的梯度，对matmul_qk进行缩放
+    dk = tf.shape(k)[-1]
+    dk = tf.cast(dk, dtype=tf.float32)
+    scaled_attention_logits = matmul_qk / tf.math.sqrt(dk)
+
+    # 将mask加入到缩放的张量上
+    if mask is not None:
+        scaled_attention_logits += (mask * (-1e9))
+    
+    # 进行softmax操作
+    attention_weights = tf.nn.softmax(scaled_attention_logits, axis=-1) # (..., seq_len_q, seq_len_k)
+
+    # 计算最终输出结果
+    output = tf.matmul(attention_weights, v)
+
+    return output, attention_weights
+
+# -------------- Multi-head attention -------------- #
+class MultiHeadAttention(tfkeras.layers.Layer):
+    def __init__(self, d_model, num_heads):
+        pass
+
+    
 if __name__ == '__main__':
-    x = tf.constant([[7, 6, 0, 0, 1], [1, 2, 3, 0, 0], [0, 0, 0, 4, 5]])
-    mask = create_look_ahead_mask(x.shape[1])
-    print(mask)
+    pass
