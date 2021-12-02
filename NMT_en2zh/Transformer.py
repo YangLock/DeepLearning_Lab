@@ -116,15 +116,78 @@ def scaled_dot_product_attention(q, k, v, mask=None):
     attention_weights = tf.nn.softmax(scaled_attention_logits, axis=-1) # (..., seq_len_q, seq_len_k)
 
     # 计算最终输出结果
-    output = tf.matmul(attention_weights, v)
+    output = tf.matmul(attention_weights, v) # (..., seq_len_q, depth_v)
 
     return output, attention_weights
 
 # -------------- Multi-head attention -------------- #
 class MultiHeadAttention(tfkeras.layers.Layer):
     def __init__(self, d_model, num_heads):
-        pass
+        super(MultiHeadAttention, self).__init__()
+        self.d_model = d_model
+        self.num_heads = num_heads
+
+        # 由于是对头部的维度进行拆分，所以要保证d_model能够整除num_heads
+        assert d_model % num_heads == 0
+        
+        self.depth = self.d_model // self.num_heads
+
+        self.wq = tfkeras.layers.Dense(self.d_model)
+        self.wk = tfkeras.layers.Dense(self.d_model)
+        self.wv = tfkeras.layers.Dense(self.d_model)
+
+        self.dense = tfkeras.layers.Dense(self.d_model)
+    
+    def split_heads(self, x, batch_size):
+        '''
+        注意力头部拆分，拆分的方法就是通过reshape将输入x的形状变为(batch_size, seq_len, num_heads, depth)
+        最后输出结果的形状通过转置变为(batch_size, num_heads, seq_len, depth)
+
+        Params:
+        ------
+            x: 输入张量的形状为(batch_size, seq_len, d_model)
+            batch_size: 批量大小
+        
+        Returns:
+        -------
+            tf.transpose(x)
+        '''
+        x = tf.reshape(x, shape=(batch_size, -1, self.num_heads, self.depth))
+        # 此时x的形状为(batch_size, seq_len, num_heads, depth)
+        # 还要通过转置将x的形状变为(batch_size, num_heads, seq_len, depth)
+        return tf.transpose(x, perm=[0, 2, 1, 3])
+    
+    def call(self, q, k, v, mask=None):
+        batch_size = tf.shape(q)[0]
+
+        q = self.wq(q)    # (batch_size, seq_len, d_model)
+        k = self.wk(k)    # (batch_size, seq_len, d_model)
+        v = self.wv(v)    # (batch_size, seq_len, d_model)
+
+        # 开始拆分成多头
+        q = self.split_heads(q, batch_size)    # (batch_size, num_heads, seq_len_q, depth)
+        k = self.split_heads(k, batch_size)    # (batch_size, num_heads, seq_len_k, depth)
+        v = self.split_heads(v, batch_size)    # (batch_size, num_heads, seq_len_v, depth)
+
+        # 计算多头注意力
+        # scaled_attention.shape == (batch_size, num_heads, seq_len_q, depth)
+        # attention_weights.shape == (batch_size, num_heads, seq_len_q, seq_len_k)
+        scaled_attention, attention_weights = scaled_dot_product_attention(q, k, v, mask)
+
+        # 将多头注意力合并
+        # 将scaled_attention的形状变为(batch_size, seq_len_q, num_heads, depth)
+        scaled_attention = tf.transpose(scaled_attention, perm=[0, 2, 1, 3])
+        # concat_attention.shape == (batch_size, seq_len_q, d_model)
+        concat_attention = tf.reshape(scaled_attention, shape=(batch_size, -1, self.d_model))
+
+        # 再过一个全连接层
+        # output.shape == (batch_size, seq_len_q, d_model)
+        output = self.dense(concat_attention)
+        return output, attention_weights
 
     
 if __name__ == '__main__':
-    pass
+    temp_mha = MultiHeadAttention(d_model=512, num_heads=8)
+    y = tf.random.uniform((1, 60, 512))
+    out, attn = temp_mha(y, y, y)
+    print(out.shape, attn.shape)
