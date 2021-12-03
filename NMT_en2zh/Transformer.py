@@ -185,6 +185,28 @@ class MultiHeadAttention(tfkeras.layers.Layer):
         output = self.dense(concat_attention)
         return output, attention_weights
 
+# -------------- Point wise feed forward network -------------- #
+def point_wise_feed_forward_network(d_model, dff):
+    '''
+    创建一个含有两个子层的点式前馈网络，第一个子层使用ReLU激活函数。
+
+    Params:
+    ------
+        d_model: 前馈网络最终的输出维度
+        dff: 第一个子层的输出维度
+
+    Returns:
+    ------
+        ffn: 一个具有两层子层的前馈网络
+    '''
+    ffn = tfkeras.Sequential([
+        tfkeras.layers.Dense(dff, activation='relu'),   # (batch_size, seq_len, dff)
+        tfkeras.layers.Dense(d_model)    # (batch_size, seq_len, d_model)
+    ])
+    return ffn
+
+# -------------- Encoder & Decoder -------------- #
+
     
 if __name__ == '__main__':
     temp_mha = MultiHeadAttention(d_model=512, num_heads=8)
