@@ -1,3 +1,4 @@
+from _typeshed import Self
 import tensorflow as tf
 import tensorflow.keras as tfkeras
 import numpy as np
@@ -206,7 +207,48 @@ def point_wise_feed_forward_network(d_model, dff):
     return ffn
 
 # -------------- Encoder & Decoder -------------- #
+class EncoderLayer(tfkeras.layers.Layer):
+    def __init__(self, d_model, num_heads, dff, dropout_rate=0.1):
+        super(EncoderLayer, self).__init__()
 
+        # 编码器层包含两个重要的子层：
+        # 1. 多头注意力层（有填充遮挡）
+        # 2. 点式前馈网络
+        # 同时每一个子层的输出都要接上一个Add&Norm层，即每个子层真正的输出是 LayerNorm(x + Sublayer(x))
+        self.mha = MultiHeadAttention(d_model, num_heads)
+        self.ffn = point_wise_feed_forward_network(d_model, dff)
+
+        # 两个归一化层
+        self.layernorm1 = tfkeras.layers.LayerNormalization(epsilon=1e-6)
+        self.layernorm2 = tfkeras.layers.LayerNormalization(epsilon=1e-6)
+
+        # 两个Dropout层
+        self.dropout1 = tfkeras.layers.Dropout(dropout_rate)
+        self.dropout2 = tfkeras.layers.Dropout(dropout_rate)
+    
+    def call(self, x, training, mask):
+        '''
+        Params:
+        ------
+            x: 输入，x.shape == (batch_size, input_seq_len, d_model)
+            training: bool型变量，表示是否启用dropout。training=True表示是在训练阶段，那么启用dropout。反之，则表示是在测试阶段，此时不启用dropout。
+            mask: bool型变量，表示是否使用mask
+        
+        Retuns:
+        ------
+            output2: 第二个子层的输出
+        '''
+        # attn_output.shape == (batch_size, input_seq_len. d_model)
+        attn_output, _ = self.mha(x, x, x, mask)
+        attn_output = self.dropout1(attn_output, training=training)
+        output1 = self.layernorm1(x + attn_output)  # output1.shape == (batch_size, input_seq_len. d_model)
+
+        # ffn_output.shape == (batch_size, input_seq_len, d_model)
+        ffn_output = self.ffn(output1)
+        ffn_output = self.dropout2(ffn_output, training=training)
+        output2 = self.layernorm2(output1 + ffn_output)  # output2.shape == (batch_size, input_seq_len, d_model)
+
+        return output2
     
 if __name__ == '__main__':
     temp_mha = MultiHeadAttention(d_model=512, num_heads=8)
