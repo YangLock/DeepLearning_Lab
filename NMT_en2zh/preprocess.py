@@ -199,3 +199,7 @@ if __name__ == '__main__':
     en_padded, cn_padded = pad_vectors(en=full_en_vec, cn=full_cn_vec, max_length=40)
     en_batch, cn_batch = get_batch(en_padded, cn_padded, batch_size=64)
     print(en_batch, cn_batch)
+    for en, cn, in zip(en_batch, cn_batch):
+        print(en)
+        print(cn)
+        break

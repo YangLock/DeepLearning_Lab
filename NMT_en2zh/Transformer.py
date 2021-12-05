@@ -1,4 +1,3 @@
-from _typeshed import Self
 import tensorflow as tf
 import tensorflow.keras as tfkeras
 import numpy as np
@@ -249,9 +248,69 @@ class EncoderLayer(tfkeras.layers.Layer):
         output2 = self.layernorm2(output1 + ffn_output)  # output2.shape == (batch_size, input_seq_len, d_model)
 
         return output2
-    
+
+class DecoderLayer(tfkeras.layers.Layer):
+    def __init__(self, d_model, num_heads, dff, dropout_rate=0.1):
+        super(DecoderLayer, self).__init__()
+
+        # 解码器层包含三个重要的子层
+        # 1. 遮挡的多头注意力（前瞻遮挡&填充遮挡）
+        # 2. 多有注意力（只有填充遮挡）。其中输入的V与K来自编码器的输出，Q来自遮挡多头注意力子层的输出。
+        # 3. 点式前馈网络
+        # 与编码器层一样，每个子层都紧跟着一个Add&Norm层，最后每个子层的输出都是 LayerNorm(x + Sublayer(x))
+        self.mha1 = MultiHeadAttention(d_model, num_heads)
+        self.mha2 = MultiHeadAttention(d_model, num_heads)
+
+        self.ffn = point_wise_feed_forward_network(d_model, dff)
+
+        self.layernorm1 = tfkeras.layers.LayerNormalization(epsilon=1e-6)
+        self.layernorm2 = tfkeras.layers.LayerNormalization(epsilon=1e-6)
+        self.layernorm3 = tfkeras.layers.LayerNormalization(epsilon=1e-6)
+
+        self.dropout1 = tfkeras.layers.Dropout(dropout_rate)
+        self.dropout2 = tfkeras.layers.Dropout(dropout_rate)
+        self.dropout3 = tfkeras.layers.Dropout(dropout_rate)
+
+    def call(self, x, enc_output, training, look_ahead_mask, padding_mask):
+        '''
+        Params:
+        ------
+            x: 输入张量
+            enc_output: 编码器的输出张量
+            training: bool型变量
+            look_ahead_mask: 前瞻遮挡
+            padding_mask: 填充遮挡
+        
+        Returns:
+        -------
+            output3: 解码器层中第三个子层的输出
+            attn_weights_block1: 第一个多头注意力子层的注意力权重
+            attn_weights_block2: 第二个多头注意力子层的注意力权重
+        '''
+        # enc_output.shape == (batch_size, input_seq_len, d_model)
+        # attn1.shape == (batch_size, target_seq_len, d_model)
+        attn1, attn_weights_block1 = self.mha1(x, x, x, look_ahead_mask)
+        attn1 = self.dropout1(attn1, training=training)
+        output1 = self.layernorm1(attn1 + x)
+
+        # attn2.shape == (batch_size, target_seq_len, d_model)
+        attn2, attn_weights_block2 = self.mha2(output1, enc_output, enc_output, padding_mask)
+        attn2 = self.dropout2(attn2, training=training)
+        output2 = self.layernorm2(output1 + attn2)
+
+        # ffn_output.shape == (batch_size, target_seq_len, d_model)
+        ffn_output = self.ffn(output2)
+        ffn_output = self.dropout3(ffn_output, training=training)
+        output3 = self.layernorm3(ffn_output + output2)
+
+        return output3, attn_weights_block1, attn_weights_block2
+
 if __name__ == '__main__':
-    temp_mha = MultiHeadAttention(d_model=512, num_heads=8)
-    y = tf.random.uniform((1, 60, 512))
-    out, attn = temp_mha(y, y, y)
-    print(out.shape, attn.shape)
+    sample_encoder_layer = EncoderLayer(512, 8, 2048)
+
+    sample_encoder_layer_output = sample_encoder_layer(tf.random.uniform((64, 43, 512)), False, None)
+    print('Encoder: ', sample_encoder_layer_output.shape)
+
+    sample_decoder_layer = DecoderLayer(d_model=512, num_heads=8, dff=2048)
+    sample_decoder_layer_output = sample_decoder_layer(tf.random.uniform((64, 50, 512)), sample_encoder_layer_output, False, None, None)[0]
+    print('Decoder: ', sample_decoder_layer_output.shape)
