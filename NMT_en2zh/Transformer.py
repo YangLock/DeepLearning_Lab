@@ -33,7 +33,7 @@ def positional_encoding(position, d_model):
 
     Returns:
     -------
-        pos_encoding: 位置编码，dtype=tf.float32
+        pos_encoding: 位置编码，dtype=tf.float32。pos_encoding.shape == (1, position, d_model)
     '''
     angle_rads = get_angles(np.arange(position)[:, np.newaxis], np.arange(d_model)[np.newaxis, :], d_model)
     # 此时计算得到的angle_rads的维度为(position, d_model)
@@ -44,7 +44,7 @@ def positional_encoding(position, d_model):
     # 将cos应用于数组中的奇数索引出：2i+1
     angle_rads[:, 1::2] = np.cos(angle_rads[:, 1::2])
     
-    pos_encoding = angle_rads[np.newaxis, ...]
+    pos_encoding = angle_rads[np.newaxis, ...]  # pos_encoding.shape == (1, position, d_model)
     return tf.cast(pos_encoding, dtype=tf.float32)
 
 # -------------- Masking -------------- #
@@ -304,6 +304,39 @@ class DecoderLayer(tfkeras.layers.Layer):
         output3 = self.layernorm3(ffn_output + output2)
 
         return output3, attn_weights_block1, attn_weights_block2
+
+class Encoder(tfkeras.layers.Layer):
+    '''
+    编码器包括：
+    1. 输入嵌入
+    2. 位置编码
+    3. N（num_layers）个编码器层
+    输入经过嵌入层后与位置编码相加，相加后的结果就是编码器的输入。编码器的输出就作为解码器的输入。
+    '''
+    def __init__(self, num_layers, d_model, num_heads, dff, input_vocab_size, maximum_position_encoding, dropout_rate=0.1):
+        super(Encoder, self).__init__()
+
+        self.num_layers = num_layers
+        self.d_model = d_model
+        
+        self.embedding = tfkeras.layers.Embedding(input_vocab_size, self.d_model)
+        self.pos_encoding = positional_encoding(maximum_position_encoding, self.d_model)
+
+        self.enc_layers = [EncoderLayer(self.d_model, num_heads, dff, dropout_rate) for _ in range(self.num_layers)]
+        self.dropout = tfkeras.layers.Dropout(dropout_rate)
+    
+    def call(self, x, training, mask):
+        seq_len = tf.shape(x)[1]
+        
+        x = self.embedding(x)
+        x *= tf.math.sqrt(tf.cast(self.d_model, tf.float32))
+        x += self.pos_encoding[:, :seq_len, :]
+        x = self.dropout(x, training=training)
+
+        for i in range(self.num_layers):
+            x = self.enc_layers[i](x, training, mask)
+
+        return x
 
 if __name__ == '__main__':
     sample_encoder_layer = EncoderLayer(512, 8, 2048)
