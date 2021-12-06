@@ -237,7 +237,7 @@ class EncoderLayer(tfkeras.layers.Layer):
         ------
             output2: 第二个子层的输出
         '''
-        # attn_output.shape == (batch_size, input_seq_len. d_model)
+        # attn_output.shape == (batch_size, input_seq_len, d_model)
         attn_output, _ = self.mha(x, x, x, mask)
         attn_output = self.dropout1(attn_output, training=training)
         output1 = self.layernorm1(x + attn_output)  # output1.shape == (batch_size, input_seq_len. d_model)
@@ -319,31 +319,98 @@ class Encoder(tfkeras.layers.Layer):
         self.num_layers = num_layers
         self.d_model = d_model
         
+        # 创建一个嵌入层作为编码器的第一层
         self.embedding = tfkeras.layers.Embedding(input_vocab_size, self.d_model)
+        # 获得位置编码张量
         self.pos_encoding = positional_encoding(maximum_position_encoding, self.d_model)
 
+        # 创建num_layers个编码器层
         self.enc_layers = [EncoderLayer(self.d_model, num_heads, dff, dropout_rate) for _ in range(self.num_layers)]
         self.dropout = tfkeras.layers.Dropout(dropout_rate)
     
     def call(self, x, training, mask):
         seq_len = tf.shape(x)[1]
         
-        x = self.embedding(x)
+        # 将输入嵌入到指定维度(d_model)中
+        x = self.embedding(x)     # x.shape == (batch_size, input_seq_len, d_model)
         x *= tf.math.sqrt(tf.cast(self.d_model, tf.float32))
+
+        # 将嵌入向量加上位置编码
         x += self.pos_encoding[:, :seq_len, :]
         x = self.dropout(x, training=training)
 
+        # 依次调用每一个编码器层
         for i in range(self.num_layers):
             x = self.enc_layers[i](x, training, mask)
 
-        return x
+        return x     # x.shape == (batch_size, input_seq_len, d_model)
+
+class Decoder(tfkeras.layers.Layer):
+    '''
+    解码器包括：
+    1. 输出嵌入
+    2. 位置编码
+    3. N个解码器层
+    '''
+    def __init__(self, num_layers, d_model, num_heads, dff, target_vocab_size, maximum_position_encoding, dropout_rate=0.1):
+        super(Decoder, self).__init__()
+
+        self.num_layers = num_layers
+        self.d_model = d_model
+
+        # 定义一个嵌入层作为解码器的第一层
+        self.embedding = tfkeras.layers.Embedding(target_vocab_size, self.d_model)
+        # 获得位置编码张量
+        self.pos_encoding = positional_encoding(maximum_position_encoding, self.d_model)
+
+        # 创建num_layers个解码器层
+        self.dec_layers = [DecoderLayer(self.d_model, num_heads, dff, dropout_rate) for _ in range(self.num_layers)]
+        self.dropout = tfkeras.layers.Dropout(dropout_rate)
+    
+    def call(self, x, enc_output, training, look_ahead_mask, padding_mask):
+        seq_len = tf.shape(x)[1]
+
+        # 由于解码器包含多个解码器层，而每个解码器层都包含两个多头注意力子层，所以使用一个字典来存储每个解码器层的注意力权重
+        attention_weights = {}
+
+        x = self.embedding(x)  # x.shape == (batch_size, target_seq_len, d_model)
+        x *= tf.math.sqrt(tf.cast(self.d_model, tf.float32))
+        # 经过嵌入层后要加上位置编码
+        x += self.pos_encoding[:, :seq_len, :]
+
+        x = self.dropout(x, training=training)
+
+        for i in range(self.num_layers):
+            x, block1, block2 = self.dec_layers[i](x, enc_output, training, look_ahead_mask, padding_mask)
+            attention_weights[f'decoder_layer{i+1}_block1'] = block1
+            attention_weights[f'decoder_layer{i+1}_block2'] = block2
+
+        # x.shape == (batch_size, target_seq_len, d_model)
+        return x, attention_weights
 
 if __name__ == '__main__':
     sample_encoder_layer = EncoderLayer(512, 8, 2048)
 
     sample_encoder_layer_output = sample_encoder_layer(tf.random.uniform((64, 43, 512)), False, None)
-    print('Encoder: ', sample_encoder_layer_output.shape)
+    print('EncoderLayer: ', sample_encoder_layer_output.shape)
 
     sample_decoder_layer = DecoderLayer(d_model=512, num_heads=8, dff=2048)
     sample_decoder_layer_output = sample_decoder_layer(tf.random.uniform((64, 50, 512)), sample_encoder_layer_output, False, None, None)[0]
-    print('Decoder: ', sample_decoder_layer_output.shape)
+    print('DecoderLayer: ', sample_decoder_layer_output.shape)
+
+    sample_encoder = Encoder(num_layers=2, d_model=512, num_heads=8, 
+                         dff=2048, input_vocab_size=8500,
+                         maximum_position_encoding=10000)
+
+    sample_encoder_output = sample_encoder(tf.random.uniform((64, 62)), 
+                                       training=False, mask=None)
+
+    print ('Encoder: ', sample_encoder_output.shape)
+
+    sample_decoder = Decoder(num_layers=2, d_model=512, num_heads=8, dff=2048,
+                             target_vocab_size=8000, maximum_position_encoding=5000)
+    sample_decoder_output, attn_weights = sample_decoder(tf.random.uniform((64, 26)), enc_output=sample_encoder_output,
+                                            training=False, look_ahead_mask=None, padding_mask=None)
+    
+    print('Decoder: ', sample_decoder_output.shape)
+    print(attn_weights['decoder_layer1_block2'].shape)
