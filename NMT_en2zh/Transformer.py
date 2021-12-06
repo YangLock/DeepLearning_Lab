@@ -388,6 +388,46 @@ class Decoder(tfkeras.layers.Layer):
         # x.shape == (batch_size, target_seq_len, d_model)
         return x, attention_weights
 
+# -------------- Create the Transformer -------------- #
+class Transformer(tfkeras.Model):
+    '''
+    Transformer包含以下三个部分：
+    1. Encoder
+    2. Decoder
+    3. Linear Layer
+    '''
+    def __init__(self, num_layers, d_model, num_heads, dff, input_vocab_size, target_vocab_size, pe_input, pe_target, dropout_rate=0.1):
+        '''
+        Params:
+        ------
+            num_layers: 编码器层与解码器层的层数
+            d_model: 词嵌入的维度
+            num_heads: 多头注意力的头数
+            dff: 点式前馈网络的第一个子层的输出维度
+            input_vocab_size: 输入数据的词典大小
+            target_vocab_size: 目标数据的词典大小
+            pe_input: 输入序列的位置编码的最大位置值
+            pe_target: 目标序列的位置编码的最大位置值
+            dropout_rate: dropout概率值
+        '''
+        super(Transformer, self).__init__()
+
+        self.encoder = Encoder(num_layers, d_model, num_heads, dff, input_vocab_size, pe_input, dropout_rate)
+        self.decoder = Decoder(num_layers, d_model, num_heads, dff, target_vocab_size, pe_target, dropout_rate)
+        self.final_layer = tfkeras.layers.Dense(target_vocab_size)
+    
+    def call(self, inp, tar, training, enc_padding_mask, look_ahead_mask, dec_padding_mask):
+        # enc_output.shape == (batch_size, inp_seq_len, d_model)
+        enc_output = self.encoder(inp, training, enc_padding_mask)
+
+        # dec_output.shape == (batch_size, tar_seq_len, d_model)
+        dec_output, attention_weights = self.decoder(tar, enc_output, training, look_ahead_mask, dec_padding_mask)
+
+        # final_output.shape == (batch_size, tar_seq_len, target_vocab_size)
+        final_output = self.final_layer(dec_output)
+
+        return final_output, attention_weights
+
 if __name__ == '__main__':
     sample_encoder_layer = EncoderLayer(512, 8, 2048)
 
