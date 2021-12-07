@@ -185,21 +185,3 @@ def get_batch(en, cn, batch_size):
     en_batch = en_batch.padded_batch(batch_size)
     cn_batch = cn_batch.padded_batch(batch_size)
     return en_batch, cn_batch
-    
-
-if __name__ == '__main__':
-    # split_train_test('./NMT_en2zh/data/eng-cmn.txt', TRAIN_PATH, TEST_PATH)
-    # build_subwords_tokenizers(TRAIN_PATH, EN_FILENAME_PREFIX, CN_FILENAME_PREFIX)
-    tokenizer_en, tokenizer_cn = get_tokenizers(EN_FILENAME_PREFIX, CN_FILENAME_PREFIX)
-    train_data = get_data(TRAIN_PATH)
-    en_data = train_data['English']
-    cn_data = train_data['Chinese']
-    en_vec, cn_vec = sentence2vec(en_data, cn_data, tokenizer_en, tokenizer_cn)
-    full_en_vec, full_cn_vec = add_token(en_vec, cn_vec, tokenizer_en, tokenizer_cn)
-    en_padded, cn_padded = pad_vectors(en=full_en_vec, cn=full_cn_vec, max_length=40)
-    en_batch, cn_batch = get_batch(en_padded, cn_padded, batch_size=64)
-    print(en_batch, cn_batch)
-    for en, cn, in zip(en_batch, cn_batch):
-        print(en)
-        print(cn)
-        break
