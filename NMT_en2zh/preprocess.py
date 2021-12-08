@@ -159,8 +159,8 @@ def pad_vectors(en, cn, max_length):
         en_padded: 补齐后的英文向量列表
         cn_padded: 补齐后的中文向量列表
     '''
-    en_padded = tfkeras.preprocessing.sequence.pad_sequences(en, maxlen=max_length, dtype='int64', padding='post', value=0.0)
-    cn_padded = tfkeras.preprocessing.sequence.pad_sequences(cn, maxlen=max_length, dtype='int64', padding='post', value=0.0)
+    en_padded = tfkeras.preprocessing.sequence.pad_sequences(en, maxlen=max_length, dtype='int64', padding='post', value=0)
+    cn_padded = tfkeras.preprocessing.sequence.pad_sequences(cn, maxlen=max_length, dtype='int64', padding='post', value=0)
     return en_padded, cn_padded
 
 def get_batch(en, cn, batch_size):
