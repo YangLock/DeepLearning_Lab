@@ -31,7 +31,12 @@ def evaluate(inp_sentence):
 
     # 给输入语句增加开始与结束标记
     inp_sentence = start_token + tokenizer_en.encode(inp_sentence) + end_token
+    # 给句子向量增加一个batch_size维度
     encoder_input = tf.expand_dims(inp_sentence, 0)
+    # 将句子向量做padding来补齐
+    encoder_input = tfkeras.preprocessing.sequence.pad_sequences(encoder_input, maxlen=MAX_LENGTH, dtype='int64', padding='post', value=0)
+    # 将padding后的句子向量转换成Tensor类型
+    encoder_input = tf.cast(encoder_input, dtype=tf.int64)
 
     # 由于目标是中文，所以输入transformer的第一个词应该是中文的开始标记
     decoder_input = [tokenizer_cn.vocab_size]
@@ -58,4 +63,4 @@ def translate(sentence):
     print(f'Predicted translation: {predict_sentence}')
 
 if __name__ == '__main__':
-    translate("What's the weather like today!")
+    translate("What's the weather like today?")
