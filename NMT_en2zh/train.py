@@ -48,7 +48,7 @@ def loss_function(real, pred):
     return tf.reduce_mean(loss_)
 
 train_loss = tfkeras.metrics.Mean(name='train_loss')
-train_accuracy = tfkeras.metrics.SparseCategoricalCrossentropy(name='train_accuracy')
+train_accuracy = tfkeras.metrics.SparseCategoricalAccuracy(name='train_accuracy')
 
 # ---------------- Training & Checkpointing ---------------- #
 
