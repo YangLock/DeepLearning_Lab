@@ -15,6 +15,8 @@ num_heads = 8
 input_vocab_size = tokenizer_en.vocab_size + 2
 target_vocab_size = tokenizer_cn.vocab_size + 2
 dropout_rate = 0.1
+MAX_LENGTH = 40
+BATCH_SIZE = 64
 EPOCHS = 20    # 训练迭代次数
 
 # ---------------- Optimizer ---------------- #
@@ -99,8 +101,8 @@ def get_dataset():
     cn_data = train_data['Chinese']
     en_vec, cn_vec = sentence2vec(en_data, cn_data, tokenizer_en, tokenizer_cn)
     full_en_vec, full_cn_vec = add_token(en_vec, cn_vec, tokenizer_en, tokenizer_cn)
-    en_padded, cn_padded = pad_vectors(full_en_vec, full_cn_vec, max_length=40)
-    en_batch, cn_batch = get_batch(en_padded, cn_padded, batch_size=64)
+    en_padded, cn_padded = pad_vectors(full_en_vec, full_cn_vec, max_length=MAX_LENGTH)
+    en_batch, cn_batch = get_batch(en_padded, cn_padded, batch_size=BATCH_SIZE)
 
     return (en_batch, cn_batch)
 
