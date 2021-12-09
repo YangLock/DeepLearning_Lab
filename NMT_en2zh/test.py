@@ -20,7 +20,7 @@ transformer = Transformer(num_layers=num_layers, d_model=d_model, num_heads=num_
                           pe_input=input_vocab_size, pe_target=target_vocab_size, dropout_rate=dropout_rate)
 optimizer = tfkeras.optimizers.Adam()
 
-checkpoint_path = '/Users/victor/Desktop/ML_Lab/NMT_en2zh/Checkpoints/train'
+checkpoint_path = './NMT_en2zh/Checkpoints/train'
 ckpt = tf.train.Checkpoint(transformer=transformer, optimizer=optimizer)
 ckpt.restore(tf.train.latest_checkpoint(checkpoint_path))
 
