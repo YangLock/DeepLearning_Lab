@@ -1,5 +1,6 @@
 import tensorflow as tf
 import tensorflow.keras as tfkeras
+from tensorflow.python.ops.gen_math_ops import rint
 from train import create_masks
 from Transformer import *
 from preprocess import *
@@ -55,12 +56,25 @@ def predict(inp_sentence):
         output = tf.concat([output, predict_id], axis=-1)
     return tf.squeeze(output, axis=0), attention_weights
 
-def translate(sentence):
+def translate(sentence, show_info=False):
+    '''
+    Params:
+    ------
+        sentence: 测试语句
+        show_info: 是否打印信息，默认值为False
+    
+    Returns:
+    -------
+        predict_sentence: 译文
+    '''
     result, attention_weights = predict(sentence)
 
     predict_sentence = tokenizer_cn.decode([i for i in result if i < tokenizer_cn.vocab_size])
-    print(f'Input: {sentence}')
-    print(f'Predicted translation: {predict_sentence}')
+    if show_info:
+        print(f'Input: {sentence}')
+        print(f'Predicted translation: {predict_sentence}')
+    return predict_sentence
 
 if __name__ == '__main__':
-    translate("What's the weather like today?")
+    t = translate("It's very easy to sound natural in your own native language, and very easy to sound unnatural in your non-native language.")
+    print(type(t))
