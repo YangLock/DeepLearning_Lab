@@ -24,7 +24,7 @@ checkpoint_path = '/Users/victor/Desktop/ML_Lab/NMT_en2zh/Checkpoints/train'
 ckpt = tf.train.Checkpoint(transformer=transformer, optimizer=optimizer)
 ckpt.restore(tf.train.latest_checkpoint(checkpoint_path))
 
-def evaluate(inp_sentence):
+def predict(inp_sentence):
     # 由于输入是英文语句，所以开始与结束标记如下所示：
     start_token = [tokenizer_en.vocab_size]
     end_token = [tokenizer_en.vocab_size + 1]
@@ -56,7 +56,7 @@ def evaluate(inp_sentence):
     return tf.squeeze(output, axis=0), attention_weights
 
 def translate(sentence):
-    result, attention_weights = evaluate(sentence)
+    result, attention_weights = predict(sentence)
 
     predict_sentence = tokenizer_cn.decode([i for i in result if i < tokenizer_cn.vocab_size])
     print(f'Input: {sentence}')
