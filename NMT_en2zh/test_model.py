@@ -78,3 +78,4 @@ def translate(sentence, show_info=False):
 if __name__ == '__main__':
     t = translate("It's very easy to sound natural in your own native language, and very easy to sound unnatural in your non-native language.")
     print(type(t))
+    transformer.summary()
